@@ -40,27 +40,33 @@ func TestAccCloudStackSecurityGroupRule_basic(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckCloudStackSecurityGroupRulesExist("cloudstack_security_group.foo"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.#", "2"),
+						"cloudstack_security_group_rule.foo", "rule.#", "3"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.0.cidr_list.0", "172.18.100.0/24"),
+						"cloudstack_security_group_rule.foo", "rule.0.protocol", "all"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.0.protocol", "tcp"),
+						"cloudstack_security_group_rule.foo", "rule.0.cidr_list.0", "172.0.0.0/8"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.0.ports.#", "1"),
+						"cloudstack_security_group_rule.foo", "rule.0.traffic_type", "egress"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.0.ports.0", "80"),
-					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.0.traffic_type", "ingress"),
+						"cloudstack_security_group_rule.foo", "rule.1.cidr_list.0", "172.18.100.0/24"),
 					resource.TestCheckResourceAttr(
 						"cloudstack_security_group_rule.foo", "rule.1.protocol", "tcp"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.1.ports.1", "80"),
+						"cloudstack_security_group_rule.foo", "rule.1.ports.#", "1"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.1.ports.0", "443"),
+						"cloudstack_security_group_rule.foo", "rule.1.ports.0", "80"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.1.traffic_type", "egress"),
+						"cloudstack_security_group_rule.foo", "rule.1.traffic_type", "ingress"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.1.user_security_group_list.0", "terraform-security-group-bar"),
+						"cloudstack_security_group_rule.foo", "rule.2.protocol", "tcp"),
+					resource.TestCheckResourceAttr(
+						"cloudstack_security_group_rule.foo", "rule.2.ports.1", "80"),
+					resource.TestCheckResourceAttr(
+						"cloudstack_security_group_rule.foo", "rule.2.ports.0", "443"),
+					resource.TestCheckResourceAttr(
+						"cloudstack_security_group_rule.foo", "rule.2.traffic_type", "egress"),
+					resource.TestCheckResourceAttr(
+						"cloudstack_security_group_rule.foo", "rule.2.user_security_group_list.0", "terraform-security-group-bar"),
 				),
 			},
 		},
@@ -78,27 +84,33 @@ func TestAccCloudStackSecurityGroupRule_update(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckCloudStackSecurityGroupRulesExist("cloudstack_security_group.foo"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.#", "2"),
+						"cloudstack_security_group_rule.foo", "rule.#", "3"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.0.cidr_list.0", "172.18.100.0/24"),
+						"cloudstack_security_group_rule.foo", "rule.0.protocol", "all"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.0.protocol", "tcp"),
+						"cloudstack_security_group_rule.foo", "rule.0.cidr_list.0", "172.0.0.0/8"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.0.ports.#", "1"),
+						"cloudstack_security_group_rule.foo", "rule.0.traffic_type", "egress"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.0.ports.0", "80"),
-					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.0.traffic_type", "ingress"),
+						"cloudstack_security_group_rule.foo", "rule.1.cidr_list.0", "172.18.100.0/24"),
 					resource.TestCheckResourceAttr(
 						"cloudstack_security_group_rule.foo", "rule.1.protocol", "tcp"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.1.ports.1", "80"),
+						"cloudstack_security_group_rule.foo", "rule.1.ports.#", "1"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.1.ports.0", "443"),
+						"cloudstack_security_group_rule.foo", "rule.1.ports.0", "80"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.1.traffic_type", "egress"),
+						"cloudstack_security_group_rule.foo", "rule.1.traffic_type", "ingress"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.1.user_security_group_list.0", "terraform-security-group-bar"),
+						"cloudstack_security_group_rule.foo", "rule.2.protocol", "tcp"),
+					resource.TestCheckResourceAttr(
+						"cloudstack_security_group_rule.foo", "rule.2.ports.1", "80"),
+					resource.TestCheckResourceAttr(
+						"cloudstack_security_group_rule.foo", "rule.2.ports.0", "443"),
+					resource.TestCheckResourceAttr(
+						"cloudstack_security_group_rule.foo", "rule.2.traffic_type", "egress"),
+					resource.TestCheckResourceAttr(
+						"cloudstack_security_group_rule.foo", "rule.2.user_security_group_list.0", "terraform-security-group-bar"),
 				),
 			},
 
@@ -107,7 +119,7 @@ func TestAccCloudStackSecurityGroupRule_update(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckCloudStackSecurityGroupRulesExist("cloudstack_security_group.foo"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.#", "3"),
+						"cloudstack_security_group_rule.foo", "rule.#", "4"),
 					resource.TestCheckResourceAttr(
 						"cloudstack_security_group_rule.foo", "rule.0.cidr_list.0", "172.18.100.0/24"),
 					resource.TestCheckResourceAttr(
@@ -127,15 +139,23 @@ func TestAccCloudStackSecurityGroupRule_update(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						"cloudstack_security_group_rule.foo", "rule.1.icmp_type", "-1"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.2.protocol", "tcp"),
+						"cloudstack_security_group_rule.foo", "rule.2.protocol", "all"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.2.ports.#", "1"),
+						"cloudstack_security_group_rule.foo", "rule.2.cidr_list.0", "172.20.100.0/24"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.2.ports.0", "80"),
+						"cloudstack_security_group_rule.foo", "rule.2.cidr_list.1", "192.168.0.0/32"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.2.traffic_type", "egress"),
+						"cloudstack_security_group_rule.foo", "rule.2.traffic_type", "ingress"),
 					resource.TestCheckResourceAttr(
-						"cloudstack_security_group_rule.foo", "rule.2.user_security_group_list.0", "terraform-security-group-bar"),
+						"cloudstack_security_group_rule.foo", "rule.3.protocol", "tcp"),
+					resource.TestCheckResourceAttr(
+						"cloudstack_security_group_rule.foo", "rule.3.ports.#", "1"),
+					resource.TestCheckResourceAttr(
+						"cloudstack_security_group_rule.foo", "rule.3.ports.0", "80"),
+					resource.TestCheckResourceAttr(
+						"cloudstack_security_group_rule.foo", "rule.3.traffic_type", "egress"),
+					resource.TestCheckResourceAttr(
+						"cloudstack_security_group_rule.foo", "rule.3.user_security_group_list.0", "terraform-security-group-bar"),
 				),
 			},
 		},
@@ -239,6 +259,12 @@ resource "cloudstack_security_group_rule" "foo" {
   security_group_id = cloudstack_security_group.foo.id
 
   rule {
+    protocol = "all"
+    cidr_list = ["172.0.0.0/8"]
+    traffic_type = "egress"
+  }
+
+  rule {
     cidr_list = ["172.18.100.0/24"]
     protocol = "tcp"
 		ports = ["80"]
@@ -267,6 +293,12 @@ resource "cloudstack_security_group" "bar" {
 
 resource "cloudstack_security_group_rule" "foo" {
   security_group_id = cloudstack_security_group.foo.id
+
+  rule {
+    protocol = "all"
+    cidr_list = ["172.20.100.0/24", "192.168.0.0/32"]
+    traffic_type = "ingress"
+  }
 
   rule {
     cidr_list = ["172.18.100.0/24", "172.18.200.0/24"]
