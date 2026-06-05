@@ -125,9 +125,17 @@ func resourceCloudStackUserDataRead(d *schema.ResourceData, meta interface{}) er
 	p := cs.User.NewListUserDataParams()
 	p.SetId(id)
 
+	if v, ok := d.GetOk("project_id"); ok {
+		p.SetProjectid(v.(string))
+	}
+
 	userdata, err := cs.User.ListUserData(p)
 	if err != nil {
 		return fmt.Errorf("Error retrieving user data with ID %s: %s", id, err)
+	}
+
+	if len(userdata.UserData) == 0 {
+		return fmt.Errorf("No user data found with ID %s", id)
 	}
 
 	d.Set("name", userdata.UserData[0].Name)
