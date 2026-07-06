@@ -48,7 +48,7 @@ jobs:
     needs: [prepare-matrix]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -58,7 +58,7 @@ jobs:
         id: setup-cloudstack
         with:
           cloudstack-version: ${{ matrix.cloudstack-version }}
-      - uses: hashicorp/setup-terraform@5e8dbf3c6d9deaf4193ca7a8fb23f2ac83bb6c85
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ matrix.terraform-version }}
           terraform_wrapper: false
@@ -79,9 +79,9 @@ jobs:
       fail-fast: false
       matrix:
         terraform-version:
-          - '1.12.*'
           - '1.13.*'
           - '1.14.*'
+          - '1.15.*'
         cloudstack-version: ${{ fromJson(needs.prepare-matrix.outputs.cloudstack-versions) }}
 
   acceptance-opentofu:
@@ -89,7 +89,7 @@ jobs:
     needs: [prepare-matrix]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -99,7 +99,7 @@ jobs:
         id: setup-cloudstack
         with:
           cloudstack-version: ${{ matrix.cloudstack-version }}
-      - uses: opentofu/setup-opentofu@9d84900f3238fab8cd84ce47d658d25dd008be2f # v1.0.8
+      - uses: opentofu/setup-opentofu@v2
         with:
           tofu_version: ${{ matrix.opentofu-version }}
           tofu_wrapper: false
@@ -120,9 +120,9 @@ jobs:
       fail-fast: false
       matrix:
         opentofu-version:
-          - '1.9.*'
           - '1.10.*'
           - '1.11.*'
+          - '1.12.*'
         cloudstack-version: ${{ fromJson(needs.prepare-matrix.outputs.cloudstack-versions) }}
 
   all-jobs-passed: # Will succeed if it is skipped
