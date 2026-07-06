@@ -70,6 +70,53 @@ func TestAccCloudStackNetwork_project(t *testing.T) {
 	})
 }
 
+func TestAccCloudStackNetwork_domain(t *testing.T) {
+	var network cloudstack.Network
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckCloudStackNetworkDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudStackNetwork_domain,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckCloudStackNetworkExists(
+						"cloudstack_network.foo", &network),
+					testAccCheckCloudStackNetworkDomainAttribute(&network, "ROOT"),
+					resource.TestCheckResourceAttr(
+						"cloudstack_network.foo", "domain", "ROOT"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccCloudStackNetwork_customDomain(t *testing.T) {
+	var network cloudstack.Network
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckCloudStackNetworkDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudStackNetwork_customDomain,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckCloudStackNetworkExists(
+						"cloudstack_network.foo", &network),
+					testAccCheckCloudStackNetworkDomainAttribute(
+						&network, "terraform-network-domain"),
+					resource.TestCheckResourceAttr(
+						"cloudstack_network.foo", "domain", "terraform-network-domain"),
+					resource.TestCheckResourceAttr(
+						"cloudstack_network.foo", "account", "terraform-network-acct"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccCloudStackNetwork_vpc(t *testing.T) {
 	var network cloudstack.Network
 
@@ -181,6 +228,7 @@ func testAccCheckCloudStackNetworkExists(
 		ntwrk, _, err := cs.Network.GetNetworkByID(
 			rs.Primary.ID,
 			cloudstack.WithProject(rs.Primary.Attributes["project"]),
+			cloudstack.WithListall(true),
 		)
 		if err != nil {
 			return err
@@ -214,6 +262,18 @@ func testAccCheckCloudStackNetworkBasicAttributes(
 
 		if network.Networkofferingname != "DefaultIsolatedNetworkOfferingWithSourceNatService" {
 			return fmt.Errorf("Bad network offering: %s", network.Networkofferingname)
+		}
+
+		return nil
+	}
+}
+
+func testAccCheckCloudStackNetworkDomainAttribute(
+	network *cloudstack.Network, domain string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+
+		if network.Domain != domain {
+			return fmt.Errorf("Bad domain: %s", network.Domain)
 		}
 
 		return nil
@@ -284,6 +344,48 @@ resource "cloudstack_network" "foo" {
   cidr = "10.1.1.0/24"
   network_offering = "DefaultIsolatedNetworkOfferingWithSourceNatService"
   project = "terraform"
+  zone = "Sandbox-simulator"
+}`
+
+const testAccCloudStackNetwork_domain = `
+resource "cloudstack_network" "foo" {
+  name = "terraform-network"
+  display_text = "terraform-network"
+  cidr = "10.1.1.0/24"
+  network_offering = "DefaultIsolatedNetworkOfferingWithSourceNatService"
+  domain = "ROOT"
+  zone = "Sandbox-simulator"
+}`
+
+const testAccCloudStackNetwork_customDomain = `
+resource "cloudstack_role" "foo" {
+  name = "terraform-network-role"
+  type = "DomainAdmin"
+}
+
+resource "cloudstack_domain" "foo" {
+  name = "terraform-network-domain"
+}
+
+resource "cloudstack_account" "foo" {
+  email        = "terraform@example.com"
+  first_name   = "Terraform"
+  last_name    = "Test"
+  username     = "terraform-network-acct"
+  password     = "password"
+  account      = "terraform-network-acct"
+  account_type = 2
+  role_id      = cloudstack_role.foo.id
+  domain_id    = cloudstack_domain.foo.id
+}
+
+resource "cloudstack_network" "foo" {
+  name = "terraform-network"
+  display_text = "terraform-network"
+  cidr = "10.1.1.0/24"
+  network_offering = "DefaultIsolatedNetworkOfferingWithSourceNatService"
+  domain = cloudstack_domain.foo.name
+  account = cloudstack_account.foo.account
   zone = "Sandbox-simulator"
 }`
 
