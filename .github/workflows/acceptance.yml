@@ -110,6 +110,8 @@ jobs:
           CLOUDSTACK_SECRET_KEY: ${{ steps.setup-cloudstack.outputs.CLOUDSTACK_SECRET_KEY }}
         run: |
           export TF_ACC_TERRAFORM_PATH="$(which tofu)"
+          export TF_ACC_PROVIDER_NAMESPACE="hashicorp"
+          export TF_ACC_PROVIDER_HOST="registry.opentofu.org"
           make testacc
     services:
       cloudstack-simulator:
