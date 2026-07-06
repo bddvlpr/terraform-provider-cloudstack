@@ -98,6 +98,12 @@ The following arguments are supported:
 
 * `network_domain` - (Optional) DNS domain for the network.
 
+* `domain` - (Optional) The name or ID of the domain to create this network in.
+    Changing this forces a new resource to be created.
+
+* `account` - (Optional) The account that should own this network. Requires
+    `domain` to be set. Changing this forces a new resource to be created.
+
 * `network_offering` - (Required) The name or ID of the network offering to use
     for this network.
 
@@ -136,8 +142,13 @@ The following attributes are exported:
 
 * `id` - The ID of the network.
 * `display_text` - The display text of the network.
+<<<<<<< HEAD
 * `gateway` - The IPv4 gateway of the network.
 * `ip6gateway` - The IPv6 gateway of the network.
+=======
+* `domain` - The domain the network belongs to.
+* `account` - The account that owns the network.
+>>>>>>> 7349ce4 (Domain (and account) attributes for networks)
 * `network_domain` - DNS domain for the network.
 * `source_nat_ip_address` - The associated source NAT IP.
 * `source_nat_ip_id` - The ID of the associated source NAT IP.
