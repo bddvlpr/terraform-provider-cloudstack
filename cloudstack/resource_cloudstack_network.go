@@ -72,6 +72,20 @@ func resourceCloudStackNetwork() *schema.Resource {
 				Computed: true,
 			},
 
+			"domain": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Computed: true,
+				ForceNew: true,
+			},
+
+			"account": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Computed: true,
+				ForceNew: true,
+			},
+
 			"cidr": {
 				Type:     schema.TypeString,
 				Optional: true,
@@ -333,7 +347,21 @@ func resourceCloudStackNetworkCreate(d *schema.ResourceData, meta interface{}) e
 		}
 	}
 
-	// If there is a project supplied, we retrieve and set the project id
+	// If there is a domain supplied, retrieve and set the domain id
+	if domain, ok := d.GetOk("domain"); ok {
+		domainid, e := retrieveID(cs, "domain", domain.(string))
+		if e != nil {
+			return e.Error()
+		}
+		p.SetDomainid(domainid)
+	}
+
+	// If there is an account supplied, set it (owner within the domain)
+	if account, ok := d.GetOk("account"); ok {
+		p.SetAccount(account.(string))
+	}
+
+	// If there is a project supplied, retrieve and set the project id
 	// This will override the inherited project from VPC if explicitly set
 	if err := setProjectid(p, cs, d); err != nil {
 		return err
@@ -392,7 +420,8 @@ func resourceCloudStackNetworkRead(d *schema.ResourceData, meta interface{}) err
 	project := d.Get("project").(string)
 	n, count, err := cs.Network.GetNetworkByID(
 		d.Id(),
-		cloudstack.WithProject(project),
+		cloudstack.WithProject(d.Get("project").(string)),
+		cloudstack.WithListall(true),
 	)
 
 	// If not found and no explicit project was set, try with projectid=-1
@@ -421,6 +450,7 @@ func resourceCloudStackNetworkRead(d *schema.ResourceData, meta interface{}) err
 	d.Set("gateway", n.Gateway)
 	d.Set("network_domain", n.Networkdomain)
 	d.Set("vpc_id", n.Vpcid)
+	d.Set("account", n.Account)
 
 	// Always set IPv6 fields to detect drift when IPv6 is removed server-side
 	d.Set("ip6cidr", n.Ip6cidr)
@@ -440,6 +470,7 @@ func resourceCloudStackNetworkRead(d *schema.ResourceData, meta interface{}) err
 	}
 	d.Set("tags", tags)
 
+	setValueOrID(d, "domain", n.Domain, n.Domainid)
 	setValueOrID(d, "network_offering", n.Networkofferingname, n.Networkofferingid)
 	setValueOrID(d, "project", n.Project, n.Projectid)
 	setValueOrID(d, "zone", n.Zonename, n.Zoneid)
