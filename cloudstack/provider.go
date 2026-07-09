@@ -90,6 +90,7 @@ func Provider() *schema.Provider {
 			"cloudstack_network_offering":     dataSourceCloudstackNetworkOffering(),
 			"cloudstack_zone":                 dataSourceCloudStackZone(),
 			"cloudstack_service_offering":     dataSourceCloudstackServiceOffering(),
+			"cloudstack_disk_offering":        dataSourceCloudstackDiskOffering(),
 			"cloudstack_volume":               dataSourceCloudstackVolume(),
 			"cloudstack_vpc":                  dataSourceCloudstackVPC(),
 			"cloudstack_ipaddress":            dataSourceCloudstackIPAddress(),
