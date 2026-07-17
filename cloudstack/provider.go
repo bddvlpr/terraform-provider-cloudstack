@@ -86,6 +86,7 @@ func Provider() *schema.Provider {
 			"cloudstack_template":             dataSourceCloudstackTemplate(),
 			"cloudstack_ssh_keypair":          dataSourceCloudstackSSHKeyPair(),
 			"cloudstack_instance":             dataSourceCloudstackInstance(),
+			"cloudstack_network":              dataSourceCloudstackNetwork(),
 			"cloudstack_network_offering":     dataSourceCloudstackNetworkOffering(),
 			"cloudstack_zone":                 dataSourceCloudStackZone(),
 			"cloudstack_service_offering":     dataSourceCloudstackServiceOffering(),
