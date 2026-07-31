@@ -143,14 +143,21 @@ resource "cloudstack_domain" "test_domain" {
   name = "test-domain-limits-ds"
 }
 
+resource "cloudstack_role" "test_account_role" {
+  name        = "test-account-limits-ds-role"
+  description = "Terraform acceptance test account role"
+  is_public   = true
+  type        = "User"
+}
+
 resource "cloudstack_account" "test_account" {
   username     = "test-account-limits-ds"
   password     = "password"
   first_name   = "Test"
   last_name    = "Account"
   email        = "test-account-limits-ds@example.com"
-  account_type = 2  # Regular user account type
-  role_id      = "4"  # Regular user role
+  account_type = 0
+  role_id      = cloudstack_role.test_account_role.id
   domain_id    = cloudstack_domain.test_domain.id
 }
 `
