@@ -198,7 +198,7 @@ func testAccCreateProjectMembershipAccount(cs *cloudstack.CloudStackClient, doma
 		accountName,
 	)
 	p.SetAccount(accountName)
-	p.SetAccounttype(2)
+	p.SetAccounttype(0)
 	p.SetRoleid("4")
 	p.SetDomainid(domainID)
 	return cs.Account.CreateAccount(p)
@@ -302,14 +302,19 @@ resource "cloudstack_domain" "membership_account" {
   name = "tf-tf-membership-account-%[1]s"
 }
 
+resource "cloudstack_role" "membership_account" {
+  name = "tf-tf-membership-account-%[1]s"
+  type = "User"
+}
+
 resource "cloudstack_account" "owner" {
   username     = "tf-tf-owner-account-%[1]s"
   password     = "password"
   first_name   = "Terraform"
   last_name    = "Owner"
   email        = "tf-tf-owner-account-%[1]s@example.com"
-  account_type = 2
-  role_id      = "4"
+  account_type = 0
+  role_id      = cloudstack_role.membership_account.id
   domain_id    = cloudstack_domain.membership_account.id
 }
 
@@ -319,8 +324,8 @@ resource "cloudstack_account" "member" {
   first_name   = "Terraform"
   last_name    = "Member"
   email        = "tf-tf-member-account-%[1]s@example.com"
-  account_type = 2
-  role_id      = "4"
+  account_type = 0
+  role_id      = cloudstack_role.membership_account.id
   domain_id    = cloudstack_domain.membership_account.id
 }
 
@@ -344,14 +349,19 @@ resource "cloudstack_domain" "membership_user" {
   name = "tf-tf-membership-user-%[1]s"
 }
 
+resource "cloudstack_role" "membership_user" {
+  name = "tf-tf-membership-user-%[1]s"
+  type = "User"
+}
+
 resource "cloudstack_account" "owner" {
   username     = "tf-tf-owner-user-%[1]s"
   password     = "password"
   first_name   = "Terraform"
   last_name    = "Owner"
   email        = "tf-tf-owner-user-%[1]s@example.com"
-  account_type = 2
-  role_id      = "4"
+  account_type = 0
+  role_id      = cloudstack_role.membership_user.id
   domain_id    = cloudstack_domain.membership_user.id
 }
 
@@ -361,8 +371,8 @@ resource "cloudstack_account" "member" {
   first_name   = "Terraform"
   last_name    = "Member"
   email        = "tf-tf-member-user-%[1]s@example.com"
-  account_type = 2
-  role_id      = "4"
+  account_type = 0
+  role_id      = cloudstack_role.membership_user.id
   domain_id    = cloudstack_domain.membership_user.id
 }
 
