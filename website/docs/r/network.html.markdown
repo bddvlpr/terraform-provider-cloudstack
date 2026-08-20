@@ -23,14 +23,20 @@ resource "cloudstack_network" "default" {
 }
 ```
 
-With IPv6 support:
+Shared network with explicit IPv4 and IPv6 router addresses:
 
 ```hcl
-resource "cloudstack_network" "ipv6" {
+resource "cloudstack_network" "shared" {
   name             = "test-network-ipv6"
   cidr             = "10.0.0.0/16"
+  startip          = "10.0.0.2"
+  endip            = "10.0.255.254"
   ip6cidr          = "2001:db8::/64"
-  network_offering = "Default Network"
+  startipv6        = "2001:db8::2"
+  endipv6          = "2001:db8::ffff"
+  routerip         = "10.0.0.2"
+  routeripv6       = "2001:db8::2"
+  network_offering = "Shared Network Offering"
   zone             = "zone-1"
 }
 ```
@@ -85,6 +91,14 @@ The following arguments are supported:
 * `ip6gateway` - (Optional) IPv6 Gateway that will be provided to the instances
     in this network. Must fall within `ip6cidr`. Defaults to the second address
     in the subnet (network address + 1, e.g., 2001:db8::1 for 2001:db8::/64).
+
+* `routerip` - (Optional) IPv4 address to assign to the router in a shared
+    network. Requires CloudStack 4.16 or later. Changing this forces a new
+    resource to be created.
+
+* `routeripv6` - (Optional) IPv6 address to assign to the router in a shared
+    network. Requires CloudStack 4.16 or later. Changing this forces a new
+    resource to be created.
 
 * `startipv6` - (Optional) Start of the IPv6 block that will be available on the
     network. Must fall within `ip6cidr`. Only applied when the network offering
