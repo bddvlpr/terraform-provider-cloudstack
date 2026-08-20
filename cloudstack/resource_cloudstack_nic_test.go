@@ -24,9 +24,113 @@ import (
 	"testing"
 
 	"github.com/apache/cloudstack-go/v2/cloudstack"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
+
+func TestSetCloudStackNICStateFromCreateResponse(t *testing.T) {
+	r := resourceCloudStackNIC()
+	d := schema.TestResourceDataRaw(t, r.Schema, map[string]interface{}{
+		"network_id":         "network-id",
+		"virtual_machine_id": "vm-id",
+	})
+
+	response := &cloudstack.AddNicToVirtualMachineResponse{
+		Nic: []cloudstack.Nic{
+			{
+				Id:               "primary-nic-id",
+				Networkid:        "primary-network-id",
+				Virtualmachineid: "vm-id",
+			},
+			{
+				Id:         "new-nic-id",
+				Ipaddress:  "172.24.219.129",
+				Macaddress: "02:1a:4b:3c:5d:6e",
+				Networkid:  "network-id",
+			},
+		},
+	}
+
+	if err := setCloudStackNICStateFromCreateResponse(d, response); err != nil {
+		t.Fatalf("failed to set NIC state: %s", err)
+	}
+
+	if got, want := d.Id(), "new-nic-id"; got != want {
+		t.Errorf("expected NIC ID %q, got %q", want, got)
+	}
+	for attribute, want := range map[string]string{
+		"ip_address":         "172.24.219.129",
+		"mac_address":        "02:1a:4b:3c:5d:6e",
+		"network_id":         "network-id",
+		"virtual_machine_id": "vm-id",
+	} {
+		if got := d.Get(attribute).(string); got != want {
+			t.Errorf("expected %s %q, got %q", attribute, want, got)
+		}
+	}
+}
+
+func TestSetCloudStackNICStateFromCreateResponseMissingNetwork(t *testing.T) {
+	r := resourceCloudStackNIC()
+	d := schema.TestResourceDataRaw(t, r.Schema, map[string]interface{}{
+		"network_id":         "network-id",
+		"virtual_machine_id": "vm-id",
+	})
+
+	err := setCloudStackNICStateFromCreateResponse(d, &cloudstack.AddNicToVirtualMachineResponse{})
+	if err == nil {
+		t.Fatal("expected an error when the create response does not contain the requested NIC")
+	}
+	if d.Id() != "" {
+		t.Fatalf("expected NIC ID to remain unset, got %q", d.Id())
+	}
+}
+
+func TestSetCloudStackNICStateFromCreateResponseMissingID(t *testing.T) {
+	r := resourceCloudStackNIC()
+	d := schema.TestResourceDataRaw(t, r.Schema, map[string]interface{}{
+		"network_id":         "network-id",
+		"virtual_machine_id": "vm-id",
+	})
+
+	err := setCloudStackNICStateFromCreateResponse(d, &cloudstack.AddNicToVirtualMachineResponse{
+		Nic: []cloudstack.Nic{{Networkid: "network-id"}},
+	})
+	if err == nil {
+		t.Fatal("expected an error when the create response does not contain a NIC ID")
+	}
+	if d.Id() != "" {
+		t.Fatalf("expected NIC ID to remain unset, got %q", d.Id())
+	}
+}
+
+func TestSetCloudStackNICStatePreservesVirtualMachineIDWhenResponseOmitsIt(t *testing.T) {
+	r := resourceCloudStackNIC()
+	d := schema.TestResourceDataRaw(t, r.Schema, map[string]interface{}{
+		"ip_address":         "172.24.219.129",
+		"mac_address":        "02:1a:4b:3c:5d:6e",
+		"network_id":         "network-id",
+		"virtual_machine_id": "vm-id",
+	})
+
+	if err := setCloudStackNICState(d, &cloudstack.Nic{Id: "nic-id"}); err != nil {
+		t.Fatalf("failed to set NIC state: %s", err)
+	}
+
+	for _, attribute := range []string{
+		"ip_address",
+		"mac_address",
+		"network_id",
+	} {
+		if got := d.Get(attribute).(string); got != "" {
+			t.Errorf("expected %s to be empty, got %q", attribute, got)
+		}
+	}
+	if got, want := d.Get("virtual_machine_id").(string), "vm-id"; got != want {
+		t.Errorf("expected virtual_machine_id %q, got %q", want, got)
+	}
+}
 
 func TestAccCloudStackNIC_basic(t *testing.T) {
 	var nic cloudstack.Nic
