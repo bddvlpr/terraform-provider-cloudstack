@@ -120,6 +120,18 @@ func resourceCloudStackNetwork() *schema.Resource {
 				ForceNew: true,
 			},
 
+			"routerip": {
+				Type:     schema.TypeString,
+				Optional: true,
+				ForceNew: true,
+			},
+
+			"routeripv6": {
+				Type:     schema.TypeString,
+				Optional: true,
+				ForceNew: true,
+			},
+
 			"startip": {
 				Type:         schema.TypeString,
 				Optional:     true,
@@ -293,6 +305,8 @@ func resourceCloudStackNetworkCreate(d *schema.ResourceData, meta interface{}) e
 		}
 	}
 
+	setNetworkRouterIPs(d, p)
+
 	// Set the network domain if we have one
 	if networkDomain, ok := d.GetOk("network_domain"); ok {
 		p.SetNetworkdomain(networkDomain.(string))
@@ -382,6 +396,16 @@ func resourceCloudStackNetworkCreate(d *schema.ResourceData, meta interface{}) e
 	}
 
 	return resourceCloudStackNetworkRead(d, meta)
+}
+
+func setNetworkRouterIPs(d *schema.ResourceData, p *cloudstack.CreateNetworkParams) {
+	if routerip, ok := d.GetOk("routerip"); ok {
+		p.SetRouterip(routerip.(string))
+	}
+
+	if routeripv6, ok := d.GetOk("routeripv6"); ok {
+		p.SetRouteripv6(routeripv6.(string))
+	}
 }
 
 func resourceCloudStackNetworkRead(d *schema.ResourceData, meta interface{}) error {
