@@ -62,6 +62,7 @@ The following arguments are supported:
 - [instance](./d/instance.html.markdown)
 - [ipaddress](./d/ipaddress.html.markdown)
 - [network_offering](./d/network_offering.html.markdown)
+- [security_group](./d/security_group.html.markdown)
 - [service_offering](./d/service_offering.html.markdown)
 - [ssh_keypair](./d/ssh_keypair.html.markdown)
 - [template](./d/template.html.markdown)
