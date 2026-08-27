@@ -120,6 +120,18 @@ func resourceCloudStackNetwork() *schema.Resource {
 				ForceNew: true,
 			},
 
+			"routerip": {
+				Type:     schema.TypeString,
+				Optional: true,
+				ForceNew: true,
+			},
+
+			"routeripv6": {
+				Type:     schema.TypeString,
+				Optional: true,
+				ForceNew: true,
+			},
+
 			"startip": {
 				Type:         schema.TypeString,
 				Optional:     true,
@@ -291,6 +303,14 @@ func resourceCloudStackNetworkCreate(d *schema.ResourceData, meta interface{}) e
 		if endipv6, ok := m6["endipv6"]; ok {
 			p.SetEndipv6(endipv6)
 		}
+	}
+
+	if routerip, ok := d.GetOk("routerip"); ok {
+		p.SetRouterip(routerip.(string))
+	}
+
+	if routeripv6, ok := d.GetOk("routeripv6"); ok {
+		p.SetRouteripv6(routeripv6.(string))
 	}
 
 	// Set the network domain if we have one

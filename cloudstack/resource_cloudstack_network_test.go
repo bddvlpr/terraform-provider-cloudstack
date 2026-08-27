@@ -285,6 +285,27 @@ func TestAccCloudStackNetwork_ipv6_custom_gateway(t *testing.T) {
 	})
 }
 
+func TestAccCloudStackNetwork_routerIPs(t *testing.T) {
+	var network cloudstack.Network
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckCloudStackNetworkDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudStackNetwork_routerIPs,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckCloudStackNetworkExists(
+						"cloudstack_network.router_ips", &network),
+					resource.TestCheckResourceAttr(
+						"cloudstack_network.router_ips", "routerip", "10.20.0.2"),
+				),
+			},
+		},
+	})
+}
+
 func testAccCheckCloudStackNetworkExists(
 	n string, network *cloudstack.Network) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
@@ -631,6 +652,38 @@ resource "cloudstack_network" "foo" {
   ip6gateway = "2001:db8:2::1"
   network_offering = "DefaultIsolatedNetworkOfferingWithSourceNatService"
   zone = "Sandbox-simulator"
+}`
+
+const testAccCloudStackNetwork_routerIPs = `
+resource "cloudstack_network_offering" "router_ips" {
+  name                = "terraform-router-ip-network-offering"
+  display_text        = "Terraform Router IP Network Offering"
+  guest_ip_type       = "Shared"
+  traffic_type        = "Guest"
+  network_rate        = 200
+  conserve_mode       = true
+  enable              = true
+  specify_vlan        = true
+  specify_ip_ranges   = true
+  supported_services  = ["Dhcp", "Dns", "UserData"]
+  service_provider_list = {
+    Dhcp     = "VirtualRouter"
+    Dns      = "VirtualRouter"
+    UserData = "VirtualRouter"
+  }
+}
+
+resource "cloudstack_network" "router_ips" {
+  name             = "terraform-router-ip-network"
+  display_text     = "terraform-router-ip-network"
+  cidr             = "10.20.0.0/24"
+  gateway          = "10.20.0.1"
+  startip          = "10.20.0.2"
+  endip            = "10.20.0.250"
+  routerip         = "10.20.0.2"
+  network_offering = cloudstack_network_offering.router_ips.id
+  zone             = "Sandbox-simulator"
+  vlan             = 300
 }`
 
 const testAccCloudStackNetwork_vpcProjectInheritance = `
