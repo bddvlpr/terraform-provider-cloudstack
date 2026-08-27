@@ -134,6 +134,7 @@ func Provider() *schema.Provider {
 			"cloudstack_loadbalancer":                   resourceCloudStackLoadBalancer(),
 			"cloudstack_loadbalancer_rule":              resourceCloudStackLoadBalancerRule(),
 			"cloudstack_network":                        resourceCloudStackNetwork(),
+			"cloudstack_network_permission":             resourceCloudStackNetworkPermission(),
 			"cloudstack_network_acl":                    resourceCloudStackNetworkACL(),
 			"cloudstack_network_acl_rule":               resourceCloudStackNetworkACLRule(),
 			"cloudstack_network_acl_ruleset":            resourceCloudStackNetworkACLRuleset(),
