@@ -25,6 +25,7 @@ import (
 
 	"github.com/apache/cloudstack-go/v2/cloudstack"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
 func resourceCloudStackNetworkOffering() *schema.Resource {
@@ -52,6 +53,12 @@ func resourceCloudStackNetworkOffering() *schema.Resource {
 			"traffic_type": {
 				Type:     schema.TypeString,
 				Required: true,
+			},
+			"tags": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Description:  "the tags for the network offering",
+				ValidateFunc: validation.StringLenBetween(0, 4096),
 			},
 			"domain_id": {
 				Type: schema.TypeList,
@@ -121,6 +128,14 @@ func resourceCloudStackNetworkOffering() *schema.Resource {
 				Optional:    true,
 				Description: "true if network offering supports vlans, false otherwise",
 				ForceNew:    true,
+			},
+			"service_offering_id": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Computed:     true,
+				Description:  "the ID of the active DomainRouter system offering used by the virtual router provider; CloudStack selects its default when omitted",
+				ForceNew:     true,
+				ValidateFunc: validation.IsUUID,
 			},
 			"supported_services": {
 				Type:        schema.TypeSet,
@@ -210,6 +225,10 @@ func resourceCloudStackNetworkOfferingCreate(d *schema.ResourceData, meta interf
 		p.SetSpecifyvlan(v.(bool))
 	}
 
+	if v, ok := d.GetOk("service_offering_id"); ok {
+		p.SetServiceofferingid(v.(string))
+	}
+
 	var supported_services []string
 	if v, ok := d.GetOk("supported_services"); ok {
 		for _, supported_service := range v.(*schema.Set).List() {
@@ -232,6 +251,10 @@ func resourceCloudStackNetworkOfferingCreate(d *schema.ResourceData, meta interf
 
 	if v, ok := d.GetOk("specify_as_number"); ok {
 		p.SetSpecifyasnumber(v.(bool))
+	}
+
+	if v, ok := d.GetOk("tags"); ok {
+		p.SetTags(v.(string))
 	}
 
 	log.Printf("[DEBUG] Creating Network Offering %s", name)
@@ -258,6 +281,7 @@ func resourceCloudStackNetworkOfferingUpdate(d *schema.ResourceData, meta interf
 
 		// Create a new parameter struct
 		p := cs.NetworkOffering.NewUpdateNetworkOfferingParams()
+		p.SetId(d.Id())
 
 		// Set the new name
 		p.SetName(d.Get("name").(string))
@@ -277,6 +301,7 @@ func resourceCloudStackNetworkOfferingUpdate(d *schema.ResourceData, meta interf
 
 		// Create a new parameter struct
 		p := cs.NetworkOffering.NewUpdateNetworkOfferingParams()
+		p.SetId(d.Id())
 
 		// Set the new display text
 		p.SetDisplaytext(d.Get("display_text").(string))
@@ -296,6 +321,7 @@ func resourceCloudStackNetworkOfferingUpdate(d *schema.ResourceData, meta interf
 
 		// Create a new parameter struct
 		p := cs.NetworkOffering.NewUpdateNetworkOfferingParams()
+		p.SetId(d.Id())
 
 		// Set the new max connections
 		p.SetMaxconnections(d.Get("max_connections").(int))
@@ -315,6 +341,7 @@ func resourceCloudStackNetworkOfferingUpdate(d *schema.ResourceData, meta interf
 
 		// Create a new parameter struct
 		p := cs.NetworkOffering.NewUpdateNetworkOfferingParams()
+		p.SetId(d.Id())
 
 		// Set the new domain id
 		p.SetDomainid(d.Get("domain_id").(string))
@@ -328,7 +355,23 @@ func resourceCloudStackNetworkOfferingUpdate(d *schema.ResourceData, meta interf
 
 	}
 
-	return resourceCloudStackInstanceRead(d, meta)
+	// Check if the tags changed and update them in place. Use Get instead of
+	// GetOk so removing the attribute sends an empty string and clears the tags.
+	if d.HasChange("tags") {
+		log.Printf("[DEBUG] Tags changed for %s, starting update", name)
+
+		p := cs.NetworkOffering.NewUpdateNetworkOfferingParams()
+		p.SetId(d.Id())
+		p.SetTags(d.Get("tags").(string))
+
+		_, err := cs.NetworkOffering.UpdateNetworkOffering(p)
+		if err != nil {
+			return fmt.Errorf(
+				"Error updating the tags for network offering %s: %s", name, err)
+		}
+	}
+
+	return resourceCloudStackNetworkOfferingRead(d, meta)
 }
 
 func resourceCloudStackNetworkOfferingDelete(d *schema.ResourceData, meta interface{}) error {
@@ -384,6 +427,8 @@ func resourceCloudStackNetworkOfferingRead(d *schema.ResourceData, meta interfac
 	d.Set("display_text", n.Displaytext)
 	d.Set("guest_ip_type", n.Guestiptype)
 	d.Set("traffic_type", n.Traffictype)
+	d.Set("tags", n.Tags)
+	d.Set("service_offering_id", n.Serviceofferingid)
 
 	if _, ok := d.GetOk("network_rate"); ok {
 		d.Set("network_rate", n.Networkrate)
