@@ -102,6 +102,11 @@ func dataSourceCloudstackNetworkOffering() *schema.Resource {
 				Type:     schema.TypeInt,
 				Computed: true,
 			},
+			"service_offering_id": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "the ID of the DomainRouter system offering used by the virtual router provider",
+			},
 			"supported_services": {
 				Type:     schema.TypeSet,
 				Computed: true,
@@ -164,6 +169,7 @@ func networkOfferingDescriptionAttributes(d *schema.ResourceData, networkOfferin
 	d.Set("guest_ip_type", networkOffering.Guestiptype)
 	d.Set("traffic_type", networkOffering.Traffictype)
 	d.Set("network_rate", networkOffering.Networkrate)
+	d.Set("service_offering_id", networkOffering.Serviceofferingid)
 
 	// Only set if CloudStack supports these fields (4.20.0+)
 	if networkOffering.Networkmode != "" {

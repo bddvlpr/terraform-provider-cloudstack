@@ -26,6 +26,7 @@ resource "cloudstack_network_offering" "example" {
     specify_vlan = true
     specify_ip_ranges = true
     max_connections = 256
+    service_offering_id = "1d382e03-87a8-4a3e-b793-16cba4939a37"
     supported_services = ["Dhcp", "Dns", "Firewall", "Lb", "SourceNat"]
     service_provider_list = {
         Dhcp = "VirtualRouter"
@@ -58,6 +59,7 @@ The following arguments are supported:
 * `internet_protocol` - (Optional) The internet protocol. Possible values are "IPv4" or "IPv6". Defaults to "IPv4".
 * `routing_mode` - (Optional) The routing mode. Possible values are "Static" or "Dynamic".
 * `max_connections` - (Optional) The maximum number of concurrent connections supported by the network offering.
+* `service_offering_id` - (Optional) The UUID of the active `DomainRouter` system offering used by the Virtual Router provider. CloudStack selects its default system offering when omitted. Changing this value recreates the network offering.
 * `supported_services` - (Optional) A list of supported services for this network offering.
 * `service_provider_list` - (Optional) A map of service providers for the supported services.
 

@@ -33,3 +33,4 @@ The following attributes are exported:
 * `display_text` - An alternate display text of the network offering.
 * `guest_ip_type` - Guest type of the network offering, can be Shared or Isolated.
 * `traffic_type` - The traffic type for the network offering, supported types are Public, Management, Control, Guest, Vlan or Storage.
+* `service_offering_id` - The UUID of the `DomainRouter` system offering used by the Virtual Router provider.

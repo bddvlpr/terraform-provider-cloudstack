@@ -25,6 +25,7 @@ import (
 
 	"github.com/apache/cloudstack-go/v2/cloudstack"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
 func resourceCloudStackNetworkOffering() *schema.Resource {
@@ -122,6 +123,14 @@ func resourceCloudStackNetworkOffering() *schema.Resource {
 				Description: "true if network offering supports vlans, false otherwise",
 				ForceNew:    true,
 			},
+			"service_offering_id": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Computed:     true,
+				Description:  "the ID of the active DomainRouter system offering used by the virtual router provider; CloudStack selects its default when omitted",
+				ForceNew:     true,
+				ValidateFunc: validation.IsUUID,
+			},
 			"supported_services": {
 				Type:        schema.TypeSet,
 				Elem:        &schema.Schema{Type: schema.TypeString},
@@ -208,6 +217,10 @@ func resourceCloudStackNetworkOfferingCreate(d *schema.ResourceData, meta interf
 
 	if v, ok := d.GetOk("specify_vlan"); ok {
 		p.SetSpecifyvlan(v.(bool))
+	}
+
+	if v, ok := d.GetOk("service_offering_id"); ok {
+		p.SetServiceofferingid(v.(string))
 	}
 
 	var supported_services []string
@@ -384,6 +397,7 @@ func resourceCloudStackNetworkOfferingRead(d *schema.ResourceData, meta interfac
 	d.Set("display_text", n.Displaytext)
 	d.Set("guest_ip_type", n.Guestiptype)
 	d.Set("traffic_type", n.Traffictype)
+	d.Set("service_offering_id", n.Serviceofferingid)
 
 	if _, ok := d.GetOk("network_rate"); ok {
 		d.Set("network_rate", n.Networkrate)

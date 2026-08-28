@@ -20,6 +20,9 @@
 package cloudstack
 
 import (
+	"fmt"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -118,6 +121,61 @@ func TestAccNetworkOfferingDataSource_allOptionalParams(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestAccNetworkOfferingDataSource_withVirtualRouterServiceOffering(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("acceptance tests skipped unless env 'TF_ACC' set")
+	}
+
+	resourceName := "cloudstack_network_offering.net-off-resource"
+	datasourceName := "data.cloudstack_network_offering.net-off-data-source"
+	serviceOfferingID := testAccDomainRouterServiceOfferingID(t)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:  func() { testAccPreCheck(t) },
+		Providers: testAccProviders,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testNetworkOfferingDataSourceConfig_withVirtualRouterServiceOffering, serviceOfferingID),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "service_offering_id", serviceOfferingID),
+					resource.TestCheckResourceAttrPair(datasourceName, "service_offering_id", resourceName, "service_offering_id"),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateVerifyIgnore: []string{
+					"enable",
+					"service_provider_list",
+					"supported_services",
+				},
+			},
+		},
+	})
+}
+
+func testAccDomainRouterServiceOfferingID(t *testing.T) string {
+	t.Helper()
+
+	cs := newTestClient(t)
+	p := cs.ServiceOffering.NewListServiceOfferingsParams()
+	p.SetIssystem(true)
+	p.SetSystemvmtype("domainrouter")
+	offerings, err := cs.ServiceOffering.ListServiceOfferings(p)
+	if err != nil {
+		t.Fatalf("failed to list DomainRouter system offerings: %v", err)
+	}
+	for _, offering := range offerings.ServiceOfferings {
+		if strings.EqualFold(offering.Systemvmtype, "domainrouter") && strings.EqualFold(offering.State, "active") {
+			return offering.Id
+		}
+	}
+
+	t.Fatal("no active DomainRouter system offering found")
+	return ""
 }
 
 const testNetworkOfferingDataSourceConfig_basic = `
@@ -235,5 +293,31 @@ data "cloudstack_network_offering" "net-off-data-source"{
   depends_on = [
     cloudstack_network_offering.net-off-resource
   ]
+}
+`
+
+const testNetworkOfferingDataSourceConfig_withVirtualRouterServiceOffering = `
+resource "cloudstack_network_offering" "net-off-resource" {
+  name                = "TestNetworkVirtualRouterServiceOffering01"
+  display_text        = "TestNetworkVirtualRouterServiceOffering01"
+  guest_ip_type       = "Isolated"
+  traffic_type        = "Guest"
+  enable              = true
+  service_offering_id = "%s"
+  supported_services  = ["Dhcp", "Dns", "Firewall", "SourceNat"]
+  service_provider_list = {
+    Dhcp      = "VirtualRouter"
+    Dns       = "VirtualRouter"
+    Firewall  = "VirtualRouter"
+    SourceNat = "VirtualRouter"
+  }
+}
+
+data "cloudstack_network_offering" "net-off-data-source" {
+  filter {
+    name  = "name"
+    value = "TestNetworkVirtualRouterServiceOffering01"
+  }
+  depends_on = [cloudstack_network_offering.net-off-resource]
 }
 `
