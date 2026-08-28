@@ -54,6 +54,12 @@ func resourceCloudStackNetworkOffering() *schema.Resource {
 				Type:     schema.TypeString,
 				Required: true,
 			},
+			"tags": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Description:  "the tags for the network offering",
+				ValidateFunc: validation.StringLenBetween(0, 4096),
+			},
 			"domain_id": {
 				Type: schema.TypeList,
 				Elem: &schema.Schema{
@@ -247,6 +253,10 @@ func resourceCloudStackNetworkOfferingCreate(d *schema.ResourceData, meta interf
 		p.SetSpecifyasnumber(v.(bool))
 	}
 
+	if v, ok := d.GetOk("tags"); ok {
+		p.SetTags(v.(string))
+	}
+
 	log.Printf("[DEBUG] Creating Network Offering %s", name)
 	n, err := cs.NetworkOffering.CreateNetworkOffering(p)
 
@@ -271,6 +281,7 @@ func resourceCloudStackNetworkOfferingUpdate(d *schema.ResourceData, meta interf
 
 		// Create a new parameter struct
 		p := cs.NetworkOffering.NewUpdateNetworkOfferingParams()
+		p.SetId(d.Id())
 
 		// Set the new name
 		p.SetName(d.Get("name").(string))
@@ -290,6 +301,7 @@ func resourceCloudStackNetworkOfferingUpdate(d *schema.ResourceData, meta interf
 
 		// Create a new parameter struct
 		p := cs.NetworkOffering.NewUpdateNetworkOfferingParams()
+		p.SetId(d.Id())
 
 		// Set the new display text
 		p.SetDisplaytext(d.Get("display_text").(string))
@@ -309,6 +321,7 @@ func resourceCloudStackNetworkOfferingUpdate(d *schema.ResourceData, meta interf
 
 		// Create a new parameter struct
 		p := cs.NetworkOffering.NewUpdateNetworkOfferingParams()
+		p.SetId(d.Id())
 
 		// Set the new max connections
 		p.SetMaxconnections(d.Get("max_connections").(int))
@@ -328,6 +341,7 @@ func resourceCloudStackNetworkOfferingUpdate(d *schema.ResourceData, meta interf
 
 		// Create a new parameter struct
 		p := cs.NetworkOffering.NewUpdateNetworkOfferingParams()
+		p.SetId(d.Id())
 
 		// Set the new domain id
 		p.SetDomainid(d.Get("domain_id").(string))
@@ -341,7 +355,23 @@ func resourceCloudStackNetworkOfferingUpdate(d *schema.ResourceData, meta interf
 
 	}
 
-	return resourceCloudStackInstanceRead(d, meta)
+	// Check if the tags changed and update them in place. Use Get instead of
+	// GetOk so removing the attribute sends an empty string and clears the tags.
+	if d.HasChange("tags") {
+		log.Printf("[DEBUG] Tags changed for %s, starting update", name)
+
+		p := cs.NetworkOffering.NewUpdateNetworkOfferingParams()
+		p.SetId(d.Id())
+		p.SetTags(d.Get("tags").(string))
+
+		_, err := cs.NetworkOffering.UpdateNetworkOffering(p)
+		if err != nil {
+			return fmt.Errorf(
+				"Error updating the tags for network offering %s: %s", name, err)
+		}
+	}
+
+	return resourceCloudStackNetworkOfferingRead(d, meta)
 }
 
 func resourceCloudStackNetworkOfferingDelete(d *schema.ResourceData, meta interface{}) error {
@@ -397,6 +427,7 @@ func resourceCloudStackNetworkOfferingRead(d *schema.ResourceData, meta interfac
 	d.Set("display_text", n.Displaytext)
 	d.Set("guest_ip_type", n.Guestiptype)
 	d.Set("traffic_type", n.Traffictype)
+	d.Set("tags", n.Tags)
 	d.Set("service_offering_id", n.Serviceofferingid)
 
 	if _, ok := d.GetOk("network_rate"); ok {
