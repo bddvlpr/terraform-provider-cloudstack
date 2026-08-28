@@ -107,6 +107,7 @@ func Provider() *schema.Provider {
 			"cloudstack_quota_tariff":              dataSourceCloudStackQuotaTariff(),
 			"cloudstack_user_data":                 dataSourceCloudstackUserData(),
 			"cloudstack_kubernetes_cluster_config": dataSourceCloudstackKubernetesClusterConfig(),
+			"cloudstack_security_group":            dataSourceCloudstackSecurityGroup(),
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
