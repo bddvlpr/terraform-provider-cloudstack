@@ -51,6 +51,7 @@ func resourceCloudStackDiskOffering() *schema.Resource {
 				Description:   "The size of the disk offering in GB",
 				Type:          schema.TypeInt,
 				Optional:      true,
+				Computed:      true,
 				ForceNew:      true,
 				ConflictsWith: []string{"customized"},
 			},
@@ -58,8 +59,8 @@ func resourceCloudStackDiskOffering() *schema.Resource {
 				Description:   "Whether the disk offering allows a custom disk size at deployment time",
 				Type:          schema.TypeBool,
 				Optional:      true,
+				Computed:      true,
 				ForceNew:      true,
-				Default:       false,
 				ConflictsWith: []string{"disk_size"},
 			},
 			"storage_type": {

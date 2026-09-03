@@ -156,6 +156,9 @@ func applyDiskOfferingFilters(diskOffering *cloudstack.DiskOffering, filters *sc
 			return false, fmt.Errorf("Invalid regex: %s", err)
 		}
 		updatedName := strings.ReplaceAll(m["name"].(string), "_", "")
+		if updatedName == "customized" {
+			updatedName = "iscustomized"
+		}
 		raw, ok := diskOfferingJSON[updatedName]
 		if !ok {
 			return false, fmt.Errorf("Unknown filter field %s", m["name"].(string))
