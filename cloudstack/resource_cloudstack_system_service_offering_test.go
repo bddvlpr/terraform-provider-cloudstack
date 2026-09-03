@@ -21,6 +21,7 @@ package cloudstack
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/apache/cloudstack-go/v2/cloudstack"
@@ -80,6 +81,48 @@ func TestAccSystemServiceOffering(t *testing.T) {
 		},
 	})
 }
+
+func TestAccSystemServiceOfferingValidation(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:  func() { testAccPreCheck(t) },
+		Providers: testAccProviders,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccCloudStackSystemServiceOfferingInvalidNetworkRate,
+				ExpectError: regexp.MustCompile("network_rate can only be set when system_vm_type is domainrouter"),
+			},
+			{
+				Config:      testAccCloudStackSystemServiceOfferingInvalidHA,
+				ExpectError: regexp.MustCompile("offer_ha cannot be enabled when storage_type is local"),
+			},
+		},
+	})
+}
+
+const testAccCloudStackSystemServiceOfferingInvalidNetworkRate = `
+resource "cloudstack_system_service_offering" "invalid" {
+  name           = "terraform-invalid-system-offering"
+  display_text   = "Terraform Invalid System Offering"
+  system_vm_type = "consoleproxy"
+  cpu_number     = 1
+  cpu_speed      = 500
+  memory         = 256
+  network_rate   = 100
+}
+`
+
+const testAccCloudStackSystemServiceOfferingInvalidHA = `
+resource "cloudstack_system_service_offering" "invalid" {
+  name           = "terraform-invalid-system-offering"
+  display_text   = "Terraform Invalid System Offering"
+  system_vm_type = "domainrouter"
+  cpu_number     = 1
+  cpu_speed      = 500
+  memory         = 256
+  storage_type   = "local"
+  offer_ha       = true
+}
+`
 
 func testAccCloudStackSystemServiceOfferingConfig(name, displayText string, cpuNumber int, hostTags, storageTags string) string {
 	return fmt.Sprintf(`
