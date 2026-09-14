@@ -297,6 +297,8 @@ func resourceCloudStackSystemServiceOfferingDelete(d *schema.ResourceData, meta 
 	return nil
 }
 
+// System offerings are excluded by the default listServiceOfferings query, so
+// reads and imports must explicitly request system offerings.
 func getSystemServiceOfferingByID(cs *cloudstack.CloudStackClient, id string) (*cloudstack.ServiceOffering, int, error) {
 	p := cs.ServiceOffering.NewListServiceOfferingsParams()
 	p.SetId(id)

@@ -22,12 +22,90 @@ package cloudstack
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/apache/cloudstack-go/v2/cloudstack"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
+
+func TestResourceCloudStackSystemServiceOfferingSchema(t *testing.T) {
+	t.Parallel()
+
+	r := resourceCloudStackSystemServiceOffering()
+	for _, name := range []string{"name", "display_text", "system_vm_type", "cpu_number", "cpu_speed", "memory"} {
+		if !r.Schema[name].Required {
+			t.Errorf("expected %q to be required", name)
+		}
+	}
+
+	for _, name := range []string{"system_vm_type", "cpu_number", "cpu_speed", "memory", "storage_type", "network_rate", "offer_ha", "limit_cpu_use"} {
+		if !r.Schema[name].ForceNew {
+			t.Errorf("expected %q to force replacement", name)
+		}
+	}
+
+	for _, name := range []string{"name", "display_text", "host_tags", "storage_tags", "domain_ids"} {
+		if r.Schema[name].ForceNew {
+			t.Errorf("expected %q to be updateable", name)
+		}
+	}
+
+	if r.Schema["domain_ids"].Type != schema.TypeSet {
+		t.Errorf("expected domain_ids to be a set")
+	}
+	if got := r.Schema["storage_type"].Default; got != "shared" {
+		t.Errorf("expected storage_type default to be shared, got %v", got)
+	}
+}
+
+func TestResourceCloudStackSystemServiceOfferingValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		systemVMType   string
+		hasNetworkRate bool
+		storageType    string
+		offerHA        bool
+		wantError      string
+	}{
+		{
+			name:           "domain router network rate",
+			systemVMType:   "domainrouter",
+			hasNetworkRate: true,
+			storageType:    "shared",
+		},
+		{
+			name:           "network rate on console proxy",
+			systemVMType:   "consoleproxy",
+			hasNetworkRate: true,
+			storageType:    "shared",
+			wantError:      "network_rate",
+		},
+		{
+			name:         "HA with local storage",
+			systemVMType: "domainrouter",
+			storageType:  "local",
+			offerHA:      true,
+			wantError:    "offer_ha",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateSystemServiceOfferingConfiguration(test.systemVMType, test.hasNetworkRate, test.storageType, test.offerHA)
+			if test.wantError == "" && err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			if test.wantError != "" && (err == nil || !strings.Contains(err.Error(), test.wantError)) {
+				t.Fatalf("expected error containing %q, got %v", test.wantError, err)
+			}
+		})
+	}
+}
 
 func TestAccSystemServiceOffering(t *testing.T) {
 	var offering cloudstack.ServiceOffering

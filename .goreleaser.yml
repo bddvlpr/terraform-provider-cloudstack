@@ -73,5 +73,5 @@ signs:
 release:
   disable: false
   github:
-    owner: cloudstack
+    owner: bddvlpr
     name: terraform-provider-cloudstack
