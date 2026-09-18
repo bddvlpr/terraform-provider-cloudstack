@@ -109,6 +109,44 @@ func TestAccCloudStackInstance_update(t *testing.T) {
 	})
 }
 
+func TestAccCloudStackInstance_extraConfig(t *testing.T) {
+	var instance cloudstack.VirtualMachine
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckCloudStackInstanceDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudStackInstance_extraConfig(""),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckCloudStackInstanceExists(
+						"cloudstack_instance.foobar", &instance),
+					resource.TestCheckResourceAttr(
+						"cloudstack_instance.foobar", "extraconfig", ""),
+				),
+			},
+			{
+				// CloudStack's simulator hypervisor does not support extra
+				// configuration. The expected error verifies that the provider
+				// forwards extraconfig when updating an instance.
+				Config: testAccCloudStackInstance_extraConfig(
+					"%3Cclock%20offset%3D%22localtime%22%2F%3E"),
+				ExpectError: regexp.MustCompile(
+					"This hypervisor Simulator is not supported for use with this feature"),
+			},
+			{
+				Config: testAccCloudStackInstance_extraConfig(""),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckCloudStackInstanceExists(
+						"cloudstack_instance.foobar", &instance),
+					testAccCheckCloudStackInstanceState(&instance, "Running"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccCloudStackInstance_fixedIP(t *testing.T) {
 	var instance cloudstack.VirtualMachine
 
@@ -433,6 +471,17 @@ func testAccCheckCloudStackInstanceRenamedAndResized(
 	}
 }
 
+func testAccCheckCloudStackInstanceState(
+	instance *cloudstack.VirtualMachine, expected string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		if instance.State != expected {
+			return fmt.Errorf("Bad state: expected %s, got %s", expected, instance.State)
+		}
+
+		return nil
+	}
+}
+
 func testAccCheckCloudStackInstanceProjectInherited(
 	instance *cloudstack.VirtualMachine) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
@@ -488,6 +537,35 @@ resource "cloudstack_instance" "foobar" {
     terraform-tag = "true"
   }
 }`
+
+func testAccCloudStackInstance_extraConfig(extraConfig string) string {
+	return fmt.Sprintf(`
+resource "cloudstack_configuration" "extra_config" {
+  name = "enable.additional.vm.configuration"
+  value = "true"
+}
+
+resource "cloudstack_network" "foo" {
+  name = "terraform-network-extra-config"
+  display_text = "terraform-network-extra-config"
+  cidr = "10.1.2.0/24"
+  network_offering = "DefaultIsolatedNetworkOfferingWithSourceNatService"
+  zone = "Sandbox-simulator"
+}
+
+resource "cloudstack_instance" "foobar" {
+  name = "terraform-extra-config"
+  display_name = "terraform-extra-config"
+  service_offering = "Small Instance"
+  network_id = cloudstack_network.foo.id
+  template = "CentOS 5.6 (64-bit) no GUI (Simulator)"
+  zone = "Sandbox-simulator"
+  expunge = true
+  extraconfig = %q
+
+  depends_on = [cloudstack_configuration.extra_config]
+}`, extraConfig)
+}
 
 const testAccCloudStackInstance_stopped = `
 resource "cloudstack_network" "foo" {

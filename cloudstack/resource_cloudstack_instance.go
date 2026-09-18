@@ -226,6 +226,11 @@ func resourceCloudStackInstance() *schema.Resource {
 				Optional: true,
 			},
 
+			"extraconfig": {
+				Type:     schema.TypeString,
+				Optional: true,
+			},
+
 			"properties": {
 				Type:     schema.TypeMap,
 				Optional: true,
@@ -299,6 +304,10 @@ func resourceCloudStackInstanceCreate(d *schema.ResourceData, meta interface{}) 
 			vmDetails[k] = v.(string)
 		}
 		p.SetDetails(vmDetails)
+	}
+
+	if extraconfig, ok := d.GetOk("extraconfig"); ok {
+		p.SetExtraconfig(extraconfig.(string))
 	}
 
 	// Set VM Properties
@@ -752,7 +761,8 @@ func resourceCloudStackInstanceUpdate(d *schema.ResourceData, meta interface{}) 
 	if d.HasChange("name") || d.HasChange("service_offering") || d.HasChange("affinity_group_ids") ||
 		d.HasChange("affinity_group_names") || d.HasChange("security_group_ids") ||
 		d.HasChange("security_group_names") || d.HasChange("keypair") || d.HasChange("keypairs") ||
-		d.HasChange("user_data") || d.HasChange("userdata_id") || d.HasChange("userdata_details") {
+		d.HasChange("user_data") || d.HasChange("userdata_id") || d.HasChange("userdata_details") ||
+		d.HasChange("extraconfig") {
 
 		restartNeeded, err := stopInstanceForUpdate(cs, d.Id(), d.Get("project").(string), name)
 		if err != nil {
@@ -974,6 +984,18 @@ func resourceCloudStackInstanceUpdate(d *schema.ResourceData, meta interface{}) 
 			if err != nil {
 				return fmt.Errorf(
 					"Error updating userdata_details for instance %s: %s", name, err)
+			}
+		}
+
+		if d.HasChange("extraconfig") {
+			log.Printf("[DEBUG] extraconfig changed for %s, starting update", name)
+
+			p := cs.VirtualMachine.NewUpdateVirtualMachineParams(d.Id())
+			p.SetExtraconfig(d.Get("extraconfig").(string))
+			_, err = cs.VirtualMachine.UpdateVirtualMachine(p)
+			if err != nil {
+				return fmt.Errorf(
+					"Error updating extraconfig for instance %s: %s", name, err)
 			}
 		}
 
