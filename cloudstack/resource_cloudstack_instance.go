@@ -25,6 +25,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"net/url"
 	"strings"
 
 	"github.com/apache/cloudstack-go/v2/cloudstack"
@@ -228,9 +229,17 @@ func resourceCloudStackInstance() *schema.Resource {
 				Optional: true,
 			},
 
+			"extraconfigs": {
+				Type:          schema.TypeList,
+				Optional:      true,
+				ConflictsWith: []string{"extraconfig"},
+				Elem:          &schema.Schema{Type: schema.TypeString, ValidateFunc: validateInstanceExtraConfig},
+			},
+
 			"extraconfig": {
-				Type:     schema.TypeString,
-				Optional: true,
+				ConflictsWith: []string{"extraconfigs"},
+				Type:          schema.TypeString,
+				Optional:      true,
 			},
 
 			"properties": {
@@ -299,7 +308,7 @@ func resourceCloudStackInstanceCreate(d *schema.ResourceData, meta interface{}) 
 
 	// Create a new parameter struct
 	p := cs.VirtualMachine.NewDeployVirtualMachineParams(serviceofferingid, templateid, zone.Id)
-	p.SetStartvm(d.Get("start_vm").(bool))
+	p.SetStartvm(d.Get("start_vm").(bool) && len(d.Get("extraconfigs").([]interface{})) == 0)
 	vmDetails := make(map[string]string)
 	if details, ok := d.GetOk("details"); ok {
 		for k, v := range details.(map[string]interface{}) {
@@ -504,6 +513,16 @@ func resourceCloudStackInstanceCreate(d *schema.ResourceData, meta interface{}) 
 	}
 
 	d.SetId(r.Id)
+	if configs := d.Get("extraconfigs").([]interface{}); len(configs) > 0 {
+		if err := reconcileInstanceExtraConfigs(cs, d.Id(), nil, configs); err != nil {
+			return err
+		}
+		if d.Get("start_vm").(bool) {
+			if _, err := cs.VirtualMachine.StartVirtualMachine(cs.VirtualMachine.NewStartVirtualMachineParams(d.Id())); err != nil {
+				return err
+			}
+		}
+	}
 
 	// Set delete protection using UpdateVirtualMachine
 	if v, ok := d.GetOk("delete_protection"); ok {
@@ -653,6 +672,27 @@ func resourceCloudStackInstanceRead(d *schema.ResourceData, meta interface{}) er
 		log.Printf("[DEBUG] Instance %s has userdata details: %s", vm.Name, vm.Userdatadetails)
 	}
 
+	if configs := d.Get("extraconfigs").([]interface{}); len(configs) > 0 {
+		remote, err := listInstanceExtraConfigs(cs, d.Id())
+		if err != nil {
+			return err
+		}
+		refreshed := make([]interface{}, len(configs))
+		for i, config := range configs {
+			value, exists := remote[fmt.Sprintf("extraconfig-%d", i+1)]
+			decoded, _ := url.QueryUnescape(config.(string))
+			if exists && value == decoded {
+				refreshed[i] = config
+			} else if exists {
+				refreshed[i] = url.QueryEscape(value)
+			} else {
+				refreshed[i] = ""
+			}
+		}
+		if err := d.Set("extraconfigs", refreshed); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -661,6 +701,29 @@ func resourceCloudStackInstanceUpdate(d *schema.ResourceData, meta interface{}) 
 	cs := meta.(*cloudstack.CloudStackClient)
 
 	name := d.Get("name").(string)
+	if d.HasChange("extraconfigs") {
+		old, next := d.GetChange("extraconfigs")
+		vm, _, err := cs.VirtualMachine.GetVirtualMachineByID(d.Id())
+		if err != nil {
+			return err
+		}
+		running := vm.State == "Running"
+		if running {
+			if _, err := cs.VirtualMachine.StopVirtualMachine(cs.VirtualMachine.NewStopVirtualMachineParams(d.Id())); err != nil {
+				return err
+			}
+		}
+		updateErr := reconcileInstanceExtraConfigs(cs, d.Id(), old.([]interface{}), next.([]interface{}))
+		if running {
+			_, restartErr := cs.VirtualMachine.StartVirtualMachine(cs.VirtualMachine.NewStartVirtualMachineParams(d.Id()))
+			if restartErr != nil {
+				return fmt.Errorf("updating extra configurations: %v; restarting instance: %w", updateErr, restartErr)
+			}
+		}
+		if updateErr != nil {
+			return updateErr
+		}
+	}
 
 	// Check if the display name is changed and if so, update the virtual machine
 	if d.HasChange("display_name") {
@@ -1002,4 +1065,64 @@ func getUserData(userData string) (string, error) {
 	}
 
 	return ud, nil
+}
+
+func validateInstanceExtraConfig(v interface{}, key string) ([]string, []error) {
+	decoded, err := url.QueryUnescape(v.(string))
+	if err != nil {
+		return nil, []error{fmt.Errorf("%s must be URL encoded: %w", key, err)}
+	}
+	if decoded == "" {
+		return nil, []error{fmt.Errorf("%s must not be empty", key)}
+	}
+	return nil, nil
+}
+
+func listInstanceExtraConfigs(cs *cloudstack.CloudStackClient, id string) (map[string]string, error) {
+	p := cs.Resourcemetadata.NewListResourceDetailsParams("UserVm")
+	p.SetResourceid(id)
+	r, err := cs.Resourcemetadata.ListResourceDetails(p)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]string)
+	for _, detail := range r.ResourceDetails {
+		result[detail.Key] = detail.Value
+	}
+	return result, nil
+}
+
+func reconcileInstanceExtraConfigs(cs *cloudstack.CloudStackClient, id string, old, next []interface{}) error {
+	remote, err := listInstanceExtraConfigs(cs, id)
+	if err != nil {
+		return err
+	}
+	desired := make(map[string]string)
+	for i, raw := range next {
+		key := fmt.Sprintf("extraconfig-%d", i+1)
+		value, err := url.QueryUnescape(raw.(string))
+		if err != nil || value == "" {
+			return fmt.Errorf("invalid extra configuration at index %d", i)
+		}
+		if i >= len(old) {
+			if _, exists := remote[key]; exists {
+				return fmt.Errorf("extra configuration setting %s already exists", key)
+			}
+		}
+		desired[key] = value
+	}
+	if len(desired) > 0 {
+		_, err := cs.Resourcemetadata.AddResourceDetail(cs.Resourcemetadata.NewAddResourceDetailParams(desired, id, "UserVm"))
+		if err != nil {
+			return fmt.Errorf("setting instance extra configurations: %w", err)
+		}
+	}
+	for i := len(next); i < len(old); i++ {
+		p := cs.Resourcemetadata.NewRemoveResourceDetailParams(id, "UserVm")
+		p.SetKey(fmt.Sprintf("extraconfig-%d", i+1))
+		if _, err := cs.Resourcemetadata.RemoveResourceDetail(p); err != nil {
+			return fmt.Errorf("removing instance extra configuration: %w", err)
+		}
+	}
+	return nil
 }

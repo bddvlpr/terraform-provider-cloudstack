@@ -206,9 +206,11 @@ The following arguments are supported:
 * `userdata_details` - (Optional) A map of key-value pairs to pass as parameters to the user data script.
     Only valid when `userdata_id` is specified. Keys must match the parameter names defined in the user data.
 
-* `extraconfig` - (Optional) A URL-encoded additional configuration string to pass to the instance.
-    CloudStack must be configured to allow the supplied additional configuration. Changing this
-    stops the instance, updates its extra configuration, and starts it again.
+* `extraconfig` - (Optional) A URL-encoded additional configuration string to pass to the instance. Conflicts with `extraconfigs`.
+
+* `extraconfigs` - (Optional) A list of URL-encoded complete configuration fragments, stored as VM settings `extraconfig-1`, `extraconfig-2`, etc.
+    For example: `extraconfigs = [urlencode("<metadata>...</metadata>"), urlencode("<devices>...</devices>")]`.
+    Combined content may exceed 5010 characters; each setting remains subject to CloudStack limits.
 
 * `keypair` - (Optional) The name of the SSH key pair that will be used to
     access this instance. (Mutual exclusive with keypairs)
