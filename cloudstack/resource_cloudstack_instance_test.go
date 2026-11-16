@@ -20,8 +20,14 @@
 package cloudstack
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"regexp"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/apache/cloudstack-go/v2/cloudstack"
@@ -773,3 +779,161 @@ resource "cloudstack_instance" "foobar" {
   expunge = true
   # Note: project is NOT specified here - it should be inherited from the network
 }`
+
+func TestAccCloudStackInstance_extraConfigs(t *testing.T) {
+	for _, start := range []bool{true, false} {
+		t.Run(fmt.Sprintf("start_vm=%t", start), func(t *testing.T) {
+			var instance cloudstack.VirtualMachine
+			var originalID string
+			a := "<metadata><a>" + strings.Repeat("a", 1900) + "</a></metadata>"
+			b := "<metadata><b>" + strings.Repeat("b", 1900) + "</b></metadata>"
+			c := "<metadata><c>" + strings.Repeat("c", 1900) + "</c></metadata>"
+			config := func(values []string) string {
+				encoded := make([]string, len(values))
+				for i, value := range values {
+					encoded[i] = fmt.Sprintf("%q", url.QueryEscape(value))
+				}
+				return strings.Replace(strings.Replace(testAccCloudStackInstance_extraConfig(""), "expunge = true", fmt.Sprintf("expunge = true\n start_vm = %t", start), 1), "extraconfig = \"\"", "extraconfigs = ["+strings.Join(encoded, ",")+"]", 1)
+			}
+			check := func(values []string) resource.TestCheckFunc {
+				return func(s *terraform.State) error {
+					expectedState := "Stopped"
+					if start {
+						expectedState = "Running"
+					}
+					if instance.State != expectedState {
+						return fmt.Errorf("instance state %s, want %s", instance.State, expectedState)
+					}
+					if originalID == "" {
+						originalID = instance.Id
+					} else if instance.Id != originalID {
+						return fmt.Errorf("instance was replaced")
+					}
+					remote, err := listInstanceExtraConfigs(testAccProvider.Meta().(*cloudstack.CloudStackClient), instance.Id)
+					if err != nil {
+						return err
+					}
+					rs := s.RootModule().Resources["cloudstack_instance.foobar"]
+					if rs.Primary.Attributes["extraconfigs.#"] != fmt.Sprint(len(values)) {
+						return fmt.Errorf("Terraform list length differs")
+					}
+					for i, value := range values {
+						if rs.Primary.Attributes[fmt.Sprintf("extraconfigs.%d", i)] != url.QueryEscape(value) {
+							return fmt.Errorf("Terraform fragment %d differs", i)
+						}
+					}
+					count := 0
+					for key, value := range remote {
+						if !strings.HasPrefix(key, "extraconfig-") {
+							continue
+						}
+						count++
+						if len(values) == 2 && value == b {
+							return fmt.Errorf("deleted middle fragment still exists at %s", key)
+						}
+					}
+					if count != len(values) {
+						return fmt.Errorf("got %d extra configurations, want %d", count, len(values))
+					}
+					for i, value := range values {
+						if remote[fmt.Sprintf("extraconfig-%d", i+1)] != value {
+							return fmt.Errorf("remote configuration %d differs", i+1)
+						}
+					}
+					return nil
+				}
+			}
+			steps := []resource.TestStep{}
+			for _, values := range [][]string{{a, b, c}, {a, c}, {a, "<metadata>updated</metadata>"}, {c}, {}} {
+				steps = append(steps, resource.TestStep{
+					Config: config(values),
+					Check:  resource.ComposeTestCheckFunc(testAccCheckCloudStackInstanceExists("cloudstack_instance.foobar", &instance), check(values)),
+				})
+			}
+			resource.Test(t, resource.TestCase{PreCheck: func() { testAccPreCheck(t) }, Providers: testAccProviders, CheckDestroy: testAccCheckCloudStackInstanceDestroy, Steps: steps})
+		})
+	}
+}
+
+func TestInstanceExtraConfigsReconcile(t *testing.T) {
+	stored := map[string]string{"extraconfig-1": "A", "extraconfig-2": "B", "extraconfig-3": "C", "unrelated": "keep"}
+	failAdd := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		switch r.Form.Get("command") {
+		case "listResourceDetails":
+			details := []map[string]string{}
+			for k, v := range stored {
+				details = append(details, map[string]string{"key": k, "value": v})
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"listresourcedetailsresponse": map[string]interface{}{"count": len(details), "resourcedetail": details}})
+		case "addResourceDetail":
+			if failAdd {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(`{"addresourcedetailresponse":{"errorcode":530,"errortext":"test failure"}}`))
+				return
+			}
+			for i := 0; ; i++ {
+				key := r.Form.Get("details[" + strconv.Itoa(i) + "].key")
+				if key == "" {
+					break
+				}
+				stored[key] = r.Form.Get("details[" + strconv.Itoa(i) + "].value")
+			}
+			w.Write([]byte(`{"addresourcedetailresponse":{"success":true}}`))
+		case "removeResourceDetail":
+			delete(stored, r.Form.Get("key"))
+			w.Write([]byte(`{"removeresourcedetailresponse":{"success":true}}`))
+		default:
+			t.Errorf("unexpected command %q", r.Form.Get("command"))
+		}
+	}))
+	defer server.Close()
+	cs := cloudstack.NewClient(server.URL, "key", "secret", false)
+	if err := reconcileInstanceExtraConfigs(cs, "vm", nil, []interface{}{"replacement"}); err == nil {
+		t.Fatal("accepted collision with existing setting")
+	}
+	if stored["extraconfig-1"] != "A" {
+		t.Fatal("collision mutated settings")
+	}
+	old := []interface{}{"A", "B", "C"}
+	value := "<metadata>é + %</metadata>"
+	next := []interface{}{"A", url.QueryEscape(value)}
+	if err := reconcileInstanceExtraConfigs(cs, "vm", old, next); err != nil {
+		t.Fatal(err)
+	}
+	if stored["extraconfig-2"] != value {
+		t.Fatalf("encoding or replacement failed: %q", stored["extraconfig-2"])
+	}
+	if _, ok := stored["extraconfig-3"]; ok {
+		t.Fatal("obsolete setting survives")
+	}
+	if stored["unrelated"] != "keep" {
+		t.Fatal("unrelated setting changed")
+	}
+	failAdd = true
+	if err := reconcileInstanceExtraConfigs(cs, "vm", next, []interface{}{"replacement"}); err == nil {
+		t.Fatal("expected API error")
+	}
+	if stored["extraconfig-2"] != value {
+		t.Fatal("settings removed after failed write")
+	}
+	failAdd = false
+	if err := reconcileInstanceExtraConfigs(cs, "vm", next, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(stored) != 1 {
+		t.Fatalf("clear left settings: %v", stored)
+	}
+}
+
+func TestInstanceExtraConfigValidation(t *testing.T) {
+	for _, value := range []string{"", "%zz"} {
+		if _, errs := validateInstanceExtraConfig(value, "extraconfigs"); len(errs) == 0 {
+			t.Fatalf("accepted %q", value)
+		}
+	}
+	if _, errs := validateInstanceExtraConfig(url.QueryEscape("<metadata>é + %</metadata>"), "extraconfigs"); len(errs) > 0 {
+		t.Fatal(errs)
+	}
+}
