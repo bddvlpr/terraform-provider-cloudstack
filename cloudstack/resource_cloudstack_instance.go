@@ -760,22 +760,13 @@ func resourceCloudStackInstanceUpdate(d *schema.ResourceData, meta interface{}) 
 	name := d.Get("name").(string)
 	if d.HasChange("extraconfigs") {
 		old, next := d.GetChange("extraconfigs")
-		vm, _, err := cs.VirtualMachine.GetVirtualMachineByID(d.Id())
+		running, err := stopInstanceForUpdate(cs, d.Id(), d.Get("project").(string), name)
 		if err != nil {
 			return err
 		}
-		running := vm.State == "Running"
-		if running {
-			if _, err := cs.VirtualMachine.StopVirtualMachine(cs.VirtualMachine.NewStopVirtualMachineParams(d.Id())); err != nil {
-				return err
-			}
-		}
 		updateErr := reconcileInstanceExtraConfigs(cs, d.Id(), old.([]interface{}), next.([]interface{}))
 		if running {
-			_, restartErr := cs.VirtualMachine.StartVirtualMachine(cs.VirtualMachine.NewStartVirtualMachineParams(d.Id()))
-			if restartErr != nil {
-				return fmt.Errorf("updating extra configurations: %v; restarting instance: %w", updateErr, restartErr)
-			}
+			updateErr = restartInstanceAfterUpdate(cs, d.Id(), name, updateErr)
 		}
 		if updateErr != nil {
 			return updateErr
