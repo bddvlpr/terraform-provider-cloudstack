@@ -31,6 +31,7 @@ import (
 	"testing"
 
 	"github.com/apache/cloudstack-go/v2/cloudstack"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
@@ -781,8 +782,9 @@ resource "cloudstack_instance" "foobar" {
 }`
 
 func TestAccCloudStackInstance_extraConfigs(t *testing.T) {
-	for _, start := range []bool{true, false} {
-		t.Run(fmt.Sprintf("start_vm=%t", start), func(t *testing.T) {
+	for _, tc := range []struct{ start, project bool }{{true, false}, {false, false}, {true, true}} {
+		start := tc.start
+		t.Run(fmt.Sprintf("start_vm=%t/project=%t", start, tc.project), func(t *testing.T) {
 			var instance cloudstack.VirtualMachine
 			var originalID string
 			a := "<metadata><a>" + strings.Repeat("a", 1900) + "</a></metadata>"
@@ -793,7 +795,16 @@ func TestAccCloudStackInstance_extraConfigs(t *testing.T) {
 				for i, value := range values {
 					encoded[i] = fmt.Sprintf("%q", url.QueryEscape(value))
 				}
-				return strings.Replace(strings.Replace(testAccCloudStackInstance_extraConfig(""), "expunge = true", fmt.Sprintf("expunge = true\n start_vm = %t", start), 1), "extraconfig = \"\"", "extraconfigs = ["+strings.Join(encoded, ",")+"]", 1)
+				template := testAccCloudStackInstance_extraConfig("")
+				if tc.project {
+					template = `resource "cloudstack_project" "extra" {
+                   name = "terraform-extra-config-project"
+                   display_text = "terraform-extra-config-project"
+                 }
+                 ` + strings.Replace(template, `cidr = "10.1.2.0/24"`, `cidr = "10.1.2.0/24"
+                   project = cloudstack_project.extra.id`, 1)
+				}
+				return strings.Replace(strings.Replace(template, "expunge = true", fmt.Sprintf("expunge = true\n start_vm = %t", start), 1), "extraconfig = \"\"", "extraconfigs = ["+strings.Join(encoded, ",")+"]", 1)
 			}
 			check := func(values []string) resource.TestCheckFunc {
 				return func(s *terraform.State) error {
@@ -935,5 +946,70 @@ func TestInstanceExtraConfigValidation(t *testing.T) {
 	}
 	if _, errs := validateInstanceExtraConfig(url.QueryEscape("<metadata>é + %</metadata>"), "extraconfigs"); len(errs) > 0 {
 		t.Fatal(errs)
+	}
+}
+
+func TestInstanceExtraConfigsUpdateProject(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	for _, project := range []string{projectID, "project-name", ""} {
+		t.Run("project="+project, func(t *testing.T) {
+			stored := ""
+			running := true
+			stops, starts, lookups := 0, 0, 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				r.ParseForm()
+				response := func(v interface{}) { json.NewEncoder(w).Encode(v) }
+				switch r.Form.Get("command") {
+				case "listProjects":
+					response(map[string]interface{}{"listprojectsresponse": map[string]interface{}{"count": 1, "project": []interface{}{map[string]string{"id": projectID, "name": "project-name"}}}})
+				case "listVirtualMachines":
+					lookups++
+					scope := r.Form.Get("projectid")
+					if scope != projectID && scope != "-1" {
+						response(map[string]interface{}{"listvirtualmachinesresponse": map[string]interface{}{"count": 0, "virtualmachine": []interface{}{}}})
+						return
+					}
+					state := "Stopped"
+					if running {
+						state = "Running"
+					}
+					response(map[string]interface{}{"listvirtualmachinesresponse": map[string]interface{}{"count": 1, "virtualmachine": []interface{}{map[string]string{"id": "vm", "state": state, "projectid": projectID, "project": "project-name"}}}})
+				case "stopVirtualMachine":
+					stops++
+					running = false
+					w.Write([]byte(`{"stopvirtualmachineresponse":{"id":"vm"}}`))
+				case "startVirtualMachine":
+					starts++
+					running = true
+					w.Write([]byte(`{"startvirtualmachineresponse":{"id":"vm"}}`))
+				case "listResourceDetails":
+					details := []interface{}{}
+					if stored != "" {
+						details = append(details, map[string]string{"key": "extraconfig-1", "value": stored})
+					}
+					response(map[string]interface{}{"listresourcedetailsresponse": map[string]interface{}{"count": len(details), "resourcedetail": details}})
+				case "addResourceDetail":
+					stored = r.Form.Get("details[0].value")
+					w.Write([]byte(`{"addresourcedetailresponse":{"success":true}}`))
+				case "listVolumes":
+					w.Write([]byte(`{"listvolumesresponse":{"count":0,"volume":[]}}`))
+				default:
+					t.Errorf("unexpected API command %s", r.Form.Get("command"))
+					w.WriteHeader(500)
+				}
+			}))
+			defer server.Close()
+			d := schema.TestResourceDataRaw(t, resourceCloudStackInstance().Schema, map[string]interface{}{
+				"project": project, "extraconfigs": []interface{}{url.QueryEscape("<metadata/>")},
+			})
+			d.SetId("vm")
+			cs := cloudstack.NewClient(server.URL, "key", "secret", false)
+			if err := resourceCloudStackInstanceUpdate(d, cs); err != nil {
+				t.Fatal(err)
+			}
+			if stored != "<metadata/>" || stops != 1 || starts != 1 || !running || lookups < 2 {
+				t.Fatalf("update did not complete: stored=%q stops=%d starts=%d lookups=%d", stored, stops, starts, lookups)
+			}
+		})
 	}
 }
